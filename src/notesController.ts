@@ -1,12 +1,27 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { mimeTypes } from './helpers';
+import { IdGenerator, mimeTypes } from './helpers';
+import { readFile, writeFile } from 'fs/promises';
+
+interface Note {
+  id: number;
+  content: string;
+}
+
+const path = 'src/notes.json';
 
 export const getNotesController = (
   _req: IncomingMessage,
   res: ServerResponse
 ) => {
-  res.writeHead(200, mimeTypes['text/plain']);
-  res.end('get all Notes');
+  (async () => {
+    try {
+      const data = await readFile(path, 'utf-8');
+      res.writeHead(200, mimeTypes['application/json']);
+      res.end(data);
+    } catch (error) {
+      console.log(error);
+    }
+  })();
 };
 
 export const getNoteByIdController = (
@@ -14,25 +29,77 @@ export const getNoteByIdController = (
   res: ServerResponse,
   id: number
 ) => {
-  res.writeHead(200, mimeTypes['text/plain']);
-  res.end(`get Note ${id}`);
+  (async () => {
+    try {
+      const data = await readFile(path, 'utf-8');
+      const notes: Note[] = JSON.parse(data);
+      const note = notes.find((note) => note.id === id);
+      if (note) {
+        res.writeHead(200, mimeTypes['application/json']);
+        res.end(JSON.stringify(note));
+      } else {
+        res.writeHead(404, mimeTypes['application/json']);
+        res.end(JSON.stringify({ error: 'id invalido' }));
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  })();
 };
 
 export const createNoteController = (
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse
 ) => {
-  res.writeHead(200, mimeTypes['text/plain']);
-  res.end('create Note');
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk.toString();
+  });
+  req.on('end', async () => {
+    const { content } = JSON.parse(body);
+    const note: Note = { id: IdGenerator.id, content };
+    try {
+      const data = await readFile(path, 'utf-8');
+      const notes: Note[] = JSON.parse(data);
+      notes.push(note);
+      await writeFile(path, JSON.stringify(notes));
+      res.writeHead(200, mimeTypes['application/json']);
+      res.end(JSON.stringify(note));
+    } catch (error) {
+      console.log(error);
+    }
+  });
 };
 
 export const updateNoteController = (
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse,
   id: number
 ) => {
-  res.writeHead(200, mimeTypes['text/plain']);
-  res.end(`update Note ${id}`);
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk.toString();
+  });
+  req.on('end', async () => {
+    const { content } = JSON.parse(body);
+    try {
+      const data = await readFile(path, 'utf-8');
+      const notes: Note[] = JSON.parse(data);
+      const note = notes.find((note) => note.id === id);
+      if (note) {
+        note.content = content;
+        const serializedNotes = JSON.stringify(notes);
+        await writeFile(path, serializedNotes);
+        res.writeHead(200, mimeTypes['application/json']);
+        res.end(JSON.stringify(note));
+      } else {
+        res.writeHead(404, mimeTypes['application/json']);
+        res.end(JSON.stringify({ error: 'id invalido' }));
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  });
 };
 
 export const deleteNoteController = (
@@ -40,6 +107,22 @@ export const deleteNoteController = (
   res: ServerResponse,
   id: number
 ) => {
-  res.writeHead(200, mimeTypes['text/plain']);
-  res.end(`delete Note ${id}`);
+  (async () => {
+    try {
+      const data = await readFile(path, 'utf-8');
+      const notes: Note[] = JSON.parse(data);
+      const index = notes.findIndex((note) => note.id === id);
+      if (index != -1) {
+        notes.splice(index, 1);
+        await writeFile(path, JSON.stringify(notes));
+        res.writeHead(200, mimeTypes['text/plain']);
+        res.end('Nota eliminada');
+      } else {
+        res.writeHead(404, mimeTypes['application/json']);
+        res.end(JSON.stringify({ error: 'id invalido' }));
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  })();
 };
